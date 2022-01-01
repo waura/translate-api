@@ -4,6 +4,9 @@ import boto3
 import datetime
 from functools import reduce
 import os
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 CHARACTER_COUNT_SUM_LIMIT = float(os.getenv('CHARACTER_COUNT_SUM_LIMIT', default=490000))
 translate = boto3.client('translate')
@@ -30,40 +33,24 @@ def get_character_count_sum():
     
     return characterCountSum
 
+def get_error_response(code, name, message):
+    return {
+        "statusCode": code,
+        "body": {
+            "error": name,
+            "message": message
+        }
+    }
+
 def lambda_handler(event, context):
-    """Sample pure Lambda function
-
-    Parameters
-    ----------
-    event: dict, required
-        API Gateway Lambda Proxy Input Format
-
-        Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-    context: object, required
-        Lambda Context runtime methods and attributes
-
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
-
-    Returns
-    ------
-    API Gateway Lambda Proxy Output Format: dict
-
-        Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-    """
+    logger.info(event)
 
     characterCountSum = get_character_count_sum()
-    print('characterCountSum = ' + str(characterCountSum))
+    logger.info('characterCountSum = ' + str(characterCountSum))
 
     # judge threshold
     if characterCountSum >= CHARACTER_COUNT_SUM_LIMIT:
-        return {
-            "statusCode": 403,
-            "body": {
-                "error": "CharacterCountLimitExceeded",
-                "message": "Monthly character count limit was exceeded. Plase retry after some time."
-            }
-        }
+        return get_error_response(403, "CharacterCountLimitExceeded", "Monthly character count limit was exceeded. Plase retry after some time.")
 
     # translate text
     params = {}
@@ -72,13 +59,22 @@ def lambda_handler(event, context):
     else:
         params = json.loads(event['body'])
 
-    response = translate.translate_text(
-        Text=params['Text'],
-        SourceLanguageCode=params['SourceLanguageCode'],
-        TargetLanguageCode=params['TargetLanguageCode']
-    )
+    try:
+        response = translate.translate_text(
+            Text=params['Text'],
+            SourceLanguageCode=params['SourceLanguageCode'],
+            TargetLanguageCode=params['TargetLanguageCode']
+        )
+        logger.info("translate_text response = " + str(response))
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                    "TranslatedText": response['TranslatedText'],
+                    "SourceLanguageCode": response['SourceLanguageCode'],
+                    "TargetLanguageCode": response['TargetLanguageCode']
+                }, ensure_ascii=False)
+        }
+    except Exception as e:
+        logger.error(e)
+        return get_error_response(500, "Unknown", "Unknown error occured.")
 
-    return {
-        "statusCode": 200,
-        "body": json.dumps(response)
-    }

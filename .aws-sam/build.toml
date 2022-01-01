@@ -9,4 +9,12 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["TranslateFunction"]
 
+[function_build_definitions.6697b9ef-d35a-4034-8f90-2fcf16d541b9]
+codeuri = "/Users/waura/work/translate-api/functions/authorizer"
+runtime = "python3.9"
+architecture = "arm64"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["AuthorizerFunction"]
+
 [layer_build_definitions]

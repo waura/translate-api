@@ -11,6 +11,55 @@ Globals:
     Timeout: 180
 
 Resources:
+  TranslateApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      AccessLogSettings:
+        DestinationArn: !GetAtt APIGatewayAccessLogs.Arn
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod", "routeKey":"$context.routeKey", "status":"$context.status", "protocol":"$context.protocol", "responseLength":"$context.responseLength", "responseType": "$context.error.responseType", "errorMessage": "$context.error.message" }'
+      FailOnWarnings: true
+      Auth:
+        DefaultAuthorizer: LambdaAuthorizer
+        Authorizers:
+          LambdaAuthorizer:
+            AuthorizerPayloadFormatVersion: 2.0
+            EnableSimpleResponses: true
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+            FunctionInvokeRole: !GetAtt AuthorizerFunctionInvokeRole.Arn
+            Identity:
+              Headers:
+                - Authorization
+
+  APIGatewayAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 90
+
+  AuthorizerFunctionInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+  
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/authorizer/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - arm64
+
   TranslateFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -21,6 +70,7 @@ Resources:
         - arm64
       Policies:
         - TranslateReadOnly
+        - CloudWatchReadOnlyAccess
       Environment:
         Variables:
           CHARACTER_COUNT_SUM_LIMIT: 490000
@@ -28,20 +78,24 @@ Resources:
         Translate:
           Type: HttpApi
           Properties:
+            ApiId: !Ref TranslateApi
             Path: /translate
             Method: get
             TimeoutInMillis: 29000
 
 Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   TranslateApi:
     Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/"
-  HelloWorldFunction:
+    Value: !Sub "https://${TranslateApi}.execute-api.${AWS::Region}.amazonaws.com/"
+  AuthorizerFunction:
+    Description: "Authorizer Lambda Function ARN"
+    Value: !GetAtt AuthorizerFunction.Arn
+  AuthorizerFunctionIamRole:
+    Description: "Implicit IAM Role created for Authorizer function"
+    Value: !GetAtt AuthorizerFunctionRole.Arn
+  TranslateFunction:
     Description: "Translate Lambda Function ARN"
     Value: !GetAtt TranslateFunction.Arn
-  HelloWorldFunctionIamRole:
+  TranslateFunctionIamRole:
     Description: "Implicit IAM Role created for Translate function"
     Value: !GetAtt TranslateFunctionRole.Arn

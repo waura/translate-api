@@ -10,14 +10,31 @@ Globals:
   Function:
     Timeout: 180
 
+Parameters:
+  CorsAllowOrigins:
+    Type: List<String>
+    Default: "http://localhost:3000"
+    Description: Enter AllowOrigins for CorsConfiguration
+
 Resources:
   TranslateApi:
     Type: AWS::Serverless::HttpApi
     Properties:
+      StageName: v1
       AccessLogSettings:
         DestinationArn: !GetAtt APIGatewayAccessLogs.Arn
-        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod", "routeKey":"$context.routeKey", "status":"$context.status", "protocol":"$context.protocol", "responseLength":"$context.responseLength", "responseType": "$context.error.responseType", "errorMessage": "$context.error.message" }'
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod", "routeKey":"$context.routeKey", "status":"$context.status", "protocol":"$context.protocol", "responseLength":"$context.responseLength", "responseType": "$context.error.responseType", "errorMessage": "$context.error.message", "integration":  { "error": "$context.integration.error", "integrationStatus": "$context.integration.integrationStatus", "latency": "$context.integration.latency", "requestId": "$context.integration.requestId", "status": "$context.integration.status" }'
       FailOnWarnings: true
+      CorsConfiguration:
+        AllowOrigins: !Ref CorsAllowOrigins
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowMethods:
+          - POST
+          - OPTIONS
+        MaxAge: 600
+        AllowCredentials: false
       Auth:
         DefaultAuthorizer: LambdaAuthorizer
         Authorizers:
@@ -80,7 +97,7 @@ Resources:
           Properties:
             ApiId: !Ref TranslateApi
             Path: /translate
-            Method: get
+            Method: post
             TimeoutInMillis: 29000
 
 Outputs:

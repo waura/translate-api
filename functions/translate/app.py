@@ -2,6 +2,7 @@ import json
 import base64
 import boto3
 import datetime
+import calendar
 from functools import reduce
 import os
 import logging
@@ -13,6 +14,9 @@ translate = boto3.client('translate')
 cloudwatch = boto3.client('cloudwatch')
 
 def get_character_count_sum():
+    now = datetime.datetime.now()
+    endDayOfMonth = calendar.monthrange(now.year, now.month)[1]
+
     # get metric data per day
     response = cloudwatch.get_metric_data(
         MetricDataQueries=[
@@ -21,8 +25,8 @@ def get_character_count_sum():
                 'Expression': "SUM(SEARCH('MetricName=\"CharacterCount\"', 'Sum', 86400))"
             },
         ],
-        StartTime=datetime.datetime(2021, 12, 1, 0, 0, 0),
-        EndTime=datetime.datetime(2021, 12, 31, 23, 59, 59)
+        StartTime=datetime.datetime(now.year, now.month, 1, 0, 0, 0),
+        EndTime=datetime.datetime(now.year, now.month, endDayOfMonth, 23, 59, 59)
     )
 
     metricDataResults = list(filter(lambda x : x['Id'] == 'characterCountSum', response['MetricDataResults']))
@@ -51,6 +55,10 @@ def lambda_handler(event, context):
     # judge threshold
     if characterCountSum >= CHARACTER_COUNT_SUM_LIMIT:
         return get_error_response(403, "CharacterCountLimitExceeded", "Monthly character count limit was exceeded. Plase retry after some time.")
+
+    # check parameter
+    if not 'body' in event:
+        return get_error_response(400, "InvalidParameter", "Request body isn't exist.")
 
     # translate text
     params = {}

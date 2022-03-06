@@ -29,11 +29,13 @@ def get_character_count_sum():
         EndTime=datetime.datetime(now.year, now.month, endDayOfMonth, 23, 59, 59)
     )
 
+    logger.info("cloudwatch get_metric_data response = " + str(response))
+
     metricDataResults = list(filter(lambda x : x['Id'] == 'characterCountSum', response['MetricDataResults']))
 
     characterCountSum = 0.0
     for result in metricDataResults:
-        characterCountSum += reduce(lambda a, b : a + b, result['Values'])
+        characterCountSum += reduce(lambda a, b : a + b, result['Values'], 0)
     
     return characterCountSum
 
